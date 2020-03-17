@@ -8,12 +8,17 @@ import LandscapeIcon from "@material-ui/icons/LandscapeOutlined"
 import ClearIcon from "@material-ui/icons/Clear"
 import SaveIcon from "@material-ui/icons/SaveTwoTone"
 import Context from "../../context"
+import axios from "axios"
+import { CREATE_PIN_MUTATION } from "../../graphql/mutations"
+import { useClient } from "../../client"
 
 const CreatePin = ({ classes }) => {
-	const { dispatch } = useContext(Context)
+	const client = useClient()
+	const { state, dispatch } = useContext(Context)
 	const [title, setTitle] = useState("")
 	const [image, setImage] = useState("")
 	const [content, setContent] = useState("")
+	const [submitting, setSubmitting] = useState(false)
 
 	const handleDeleteDraft = () => {
 		setTitle("")
@@ -22,9 +27,43 @@ const CreatePin = ({ classes }) => {
 		dispatch({ type: "DELETE_DRAFT" })
 	}
 
-	const handleSubmit = e => {
-		e.preventDefault()
-		console.log({ title, image, content })
+	const handleImageUpload = async () => {
+		const data = new FormData()
+		data.append("file", image)
+		data.append("upload_preset", "geopins")
+		data.append("cloud_name", "geopins-wk12345")
+		const res = await axios
+			.post(
+				"https://api.cloudinary.com/v1_1/geopins-wk12345/image/upload",
+				data
+			)
+			.catch(err => {
+				console.log("not working...", err.message)
+			})
+		return res.data.url
+	}
+
+	const handleSubmit = async e => {
+		try {
+			e.preventDefault()
+			setSubmitting(true)
+			const url = await handleImageUpload()
+			const { latitude, longitude } = state.draft
+			const variables = {
+				title,
+				image: url,
+				content,
+				latitude,
+				longitude
+			}
+			const { createPin } = await client.request(CREATE_PIN_MUTATION, variables)
+			console.log("Pin created", createPin)
+			dispatch({ type: "CREATE_PIN", payload: createPin })
+			handleDeleteDraft()
+		} catch (error) {
+			setSubmitting(false)
+			console.error("Error creating pin", error)
+		}
 	}
 	return (
 		<form className={classes.form}>
@@ -89,7 +128,7 @@ const CreatePin = ({ classes }) => {
 					className={classes.button}
 					variant="contained"
 					color="secondary"
-					disabled={!title.trim() || !content.trim() || !image}
+					disabled={!title.trim() || !content.trim() || !image || submitting}
 					onClick={handleSubmit}
 				>
 					<SaveIcon className={classes.rightIcon} /> Submit
