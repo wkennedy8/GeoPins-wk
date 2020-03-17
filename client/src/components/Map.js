@@ -11,6 +11,14 @@ import Blog from "./Blog"
 import { useClient } from "../client"
 import { GET_PINS_QUERY } from "../graphql/queries"
 import { DELETE_PIN_MUTATION } from "../graphql/mutations"
+import { Subscription } from "react-apollo"
+import {
+	PIN_ADDED_SUBSCRIPTION,
+	PIN_DELETED_SUBSCRIPTION,
+	PIN_UPDATED_SUBSCRIPTION
+} from "../graphql/subscriptions"
+
+import { unstable_useMediaQuery as useMediaQuery } from "@material-ui/core/useMediaQuery"
 
 const INITIAL_VIEWPORT = {
 	latitude: 25.761681,
@@ -20,6 +28,7 @@ const INITIAL_VIEWPORT = {
 
 const Map = ({ classes }) => {
 	const client = useClient()
+	const mobileSize = useMediaQuery("(max-width: 650px)")
 	const { state, dispatch } = useContext(Context)
 
 	useEffect(() => {
@@ -34,6 +43,15 @@ const Map = ({ classes }) => {
 	}, [])
 
 	const [popup, setPopup] = useState(null)
+	// remove popup if pin itself is deleted by its author
+
+	useEffect(() => {
+		const pinExists =
+			popup && state.pins.findIndex(pin => pin._id === popup._id) > -1
+		if (!pinExists) {
+			setPopup(null)
+		}
+	}, [state.pins.length])
 
 	const getUserPosition = () => {
 		if ("geolocation" in navigator) {
@@ -77,17 +95,18 @@ const Map = ({ classes }) => {
 
 	const handleDeletePin = async pin => {
 		const variables = { pinId: pin._id }
-		const { deletePin } = await client.request(DELETE_PIN_MUTATION, variables)
-		dispatch({ type: "DELETE_PIN", payload: deletePin })
+		await client.request(DELETE_PIN_MUTATION, variables)
+
 		setPopup(null)
 	}
 	return (
-		<div className={classes.root}>
+		<div className={mobileSize ? classes.rootMobile : classes.root}>
 			<ReactMapGL
 				mapboxApiAccessToken="pk.eyJ1Ijoid2tlbm5lZHk4IiwiYSI6ImNrN3UxeTRwYjEzM3czZHAzdTAyOGxmYzgifQ.q_7dU4URRa7wuCg5dSNU6g"
 				width="100vw"
 				height="calc(100vh - 64px)"
 				mapStyle="mapbox://styles/mapbox/streets-v9"
+				scrollZoom={!mobileSize}
 				onViewportChange={newViewport => setViewport(newViewport)}
 				{...viewport}
 				onClick={handleMapClick}
@@ -164,6 +183,33 @@ const Map = ({ classes }) => {
 					</Popup>
 				)}
 			</ReactMapGL>
+
+			{/* Subscriptions for adding, updating, and deleting pins  */}
+
+			<Subscription
+				subscription={PIN_ADDED_SUBSCRIPTION}
+				onSubscriptionData={({ subscriptionData }) => {
+					const { pinAdded } = subscriptionData.data
+					dispatch({ type: "CREATE_PIN", payload: pinAdded })
+					console.log({ pinAdded })
+				}}
+			/>
+			<Subscription
+				subscription={PIN_UPDATED_SUBSCRIPTION}
+				onSubscriptionData={({ subscriptionData }) => {
+					const { pinUpdated } = subscriptionData.data
+					dispatch({ type: "CREATE_COMMENT", payload: pinUpdated })
+					console.log({ pinUpdated })
+				}}
+			/>
+			<Subscription
+				subscription={PIN_DELETED_SUBSCRIPTION}
+				onSubscriptionData={({ subscriptionData }) => {
+					const { pinDeleted } = subscriptionData.data
+					dispatch({ type: "DELETE_PIN", payload: pinDeleted })
+					console.log({ pinDeleted })
+				}}
+			/>
 			<Blog />
 		</div>
 	)
