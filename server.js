@@ -19,7 +19,7 @@ const server = new ApolloServer({
       preflightContinue: false,
       optionsSuccessStatus: 204,
       credentials: true
-    }
+    },
 	context: async ({ req }) => {
 		let authToken = null
 		let currentUser = null
