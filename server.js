@@ -12,7 +12,14 @@ mongoose
 const server = new ApolloServer({
 	typeDefs,
 	resolvers,
-	cors: true
+	introspection: true,
+    cors: {
+      origin: "*",
+      methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+      preflightContinue: false,
+      optionsSuccessStatus: 204,
+      credentials: true
+    }
 	context: async ({ req }) => {
 		let authToken = null
 		let currentUser = null
